@@ -35,22 +35,26 @@ def ui_log(msg: str):
     logger.info(msg)
 
 # ============== MISTRAL INIT ==============
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
-MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-medium")
+# ============== OPENAI INIT ==============
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-if not MISTRAL_API_KEY:
-    st.error("⚠️ Please set MISTRAL_API_KEY in your .env file")
+if not OPENAI_API_KEY:
+    st.error("⚠️ Please set OPENAI_API_KEY in your .env file")
     st.stop()
 
-def ask_mistral(prompt_text: str) -> str:
-    """Send prompt to Mistral API"""
-    ui_log(f"➡️ [SEND:MISTRAL] prompt_len={len(prompt_text)} chars")
+def ask_openai(prompt_text: str) -> str:
+    """Send prompt to OpenAI API (Chat Completions endpoint)"""
+    ui_log(f"➡️ [SEND:OPENAI] prompt_len={len(prompt_text)} chars")
     try:
         response = requests.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_API_KEY}"},
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
             json={
-                "model": MISTRAL_MODEL,
+                "model": OPENAI_MODEL,
                 "messages": [{"role": "user", "content": prompt_text}],
                 "temperature": 0.7,
                 "max_tokens": 2000,
@@ -59,14 +63,15 @@ def ask_mistral(prompt_text: str) -> str:
         )
         response.raise_for_status()
         text = response.json()["choices"][0]["message"]["content"].strip()
-        ui_log(f"⬅️ [RECV:MISTRAL] len={len(text)}")
+        ui_log(f"⬅️ [RECV:OPENAI] len={len(text)}")
         return text
     except Exception as e:
         err = traceback.format_exc()
-        ui_log(f"❌ [MISTRAL ERROR] {e}\n{err}")
+        ui_log(f"❌ [OPENAI ERROR] {e}\n{err}")
         return f"Error: {e}"
 
-ui_log(f"✅ Mistral initialized (model={MISTRAL_MODEL})")
+ui_log(f"✅ OpenAI initialized (model={OPENAI_MODEL})")
+
 
 # ============== SYSTEM PROMPT ==============
 SYSTEM_PROMPT = """
@@ -373,7 +378,7 @@ def render_final_section():
     render_radar(criteria)
     if "ceo_summary" not in st.session_state:
         ceo_prompt = conversation_text() + "\nWrite a concise CEO summary (3–4 sentences)."
-        st.session_state.ceo_summary = ask_mistral(ceo_prompt)
+        st.session_state.ceo_summary = ask_openai(ceo_prompt)
     st.subheader("🧠 CEO Summary")
     st.markdown(st.session_state.ceo_summary)
     pdf_bytes = build_pdf_report(st.session_state.final_text, st.session_state.ceo_summary)
@@ -408,12 +413,12 @@ if st.session_state.started:
                         "Answer the user's new questions or comments based on the report, "
                         "and provide helpful, practical guidance."
                     )
-                    reply = ask_mistral(context)
+                    reply = ask_openai(context)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
                     st.markdown(reply)
 
                 elif user_answers < 10:
-                    reply = ask_mistral(context)
+                    reply = ask_openai(context)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
                     st.markdown(reply)
                     st.rerun()
@@ -427,7 +432,7 @@ at least 5 strengths, 5 weaknesses, 7–10 next steps,
 and a short Opportunities & Risks section in Markdown.
 Use professional, structured Markdown style.
 """
-                    final_text = ask_mistral(summary_prompt)
+                    final_text = ask_openai(summary_prompt)
                     st.session_state.final_text = final_text
                     st.session_state.messages.append({"role": "assistant", "content": "✅ Report generated."})
 
